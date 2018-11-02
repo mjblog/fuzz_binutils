@@ -13,7 +13,7 @@ index 3e833b6..497e350 100644
  
  func elfreloc1(ctxt *ld.Link, r *sym.Reloc, sectoff int64) bool {
 +	if r.Type == objabi.R_ADDR || r.Type == objabi.R_POWER_TLS ||  r.Type == objabi.R_CALLPOWER {
-+    }else{
++	} else {
 +		if ctxt.Arch.ByteOrder == binary.BigEndian {
 +			sectoff += 2
 +		}
@@ -25,15 +25,16 @@ diff --git a/src/cmd/link/internal/ppc64/obj.go b/src/cmd/link/internal/ppc64/ob
 index 273d9b4..a0150ed 100644
 --- a/src/cmd/link/internal/ppc64/obj.go
 +++ b/src/cmd/link/internal/ppc64/obj.go
-@@ -94,7 +94,7 @@ func archinit(ctxt *ld.Link) {
+@@ -93,9 +93,6 @@ func archinit(ctxt *ld.Link) {
+ 		}
  
  	case objabi.Hlinux: /* ppc64 elf */
- 		if ctxt.Arch == sys.ArchPPC64 {
--			*ld.FlagD = true // TODO(austin): ELF ABI v1 not supported yet
-+			*ld.FlagD = false // TODO(austin): ELF ABI v1 not supported yet
- 		}
+-		if ctxt.Arch == sys.ArchPPC64 {
+-			*ld.FlagD = false // TODO(austin): ELF ABI v1 not supported yet
+-		}
  		ld.Elfinit(ctxt)
  		ld.HEADR = ld.ELFRESERVE
+ 		if *ld.FlagTextAddr == -1 {
 diff --git a/src/runtime/asm_ppc64x.s b/src/runtime/asm_ppc64x.s
 index b180cb0..4392461 100644
 --- a/src/runtime/asm_ppc64x.s
@@ -42,7 +43,7 @@ index b180cb0..4392461 100644
  	MOVD	_cgo_init(SB), R12
  	CMP	R0, R12
  	BEQ	nocgo
-+#ifndef GOARCH_ppc64le
++#ifdef GOARCH_ppc64
 +	MOVD	8(R12), R2
 +	MOVD	(R12), R12
 +#endif
@@ -53,24 +54,23 @@ index b180cb0..4392461 100644
  	MOVD	R0, 0(R1)	// clear back chain pointer (TODO can we give it real back trace information?)
  	// This is a "global call", so put the global entry point in r12
  	MOVD	R3, R12
-+	
++
 +#ifdef GOARCH_ppc64
-+	MOVD    8(R12), R2
++	MOVD	8(R12), R2
 +	MOVD	(R12), R12
-+#endif	
++#endif
  	MOVD	R12, CTR
  	MOVD	R4, R3		// arg in r3
  	BL	(CTR)
-@@ -722,9 +731,21 @@ TEXT runtime·setg(SB), NOSPLIT, $0-8
+@@ -722,9 +731,20 @@ TEXT runtime·setg(SB), NOSPLIT, $0-8
  	BL	runtime·save_g(SB)
  	RET
  
-+#ifndef GOARCH_ppc64le
-+// function descriptor for the real sigtramp
++#ifdef GOARCH_ppc64
 +TEXT setg_gcc<>(SB),NOSPLIT|NOFRAME,$0-0
-+    DWORD   $_setg_gcc<>(SB)
-+    DWORD   $0
-+    DWORD   $0
++	DWORD	$_setg_gcc<>(SB)
++	DWORD	$0
++	DWORD	$0
 +#endif
 +
  // void setg_gcc(G*); set g in C TLS.
@@ -108,7 +108,7 @@ index f814515..1c05623 100644
 -	BR main(SB)
 -
 -TEXT main(SB),NOSPLIT,$-8
-+	// TODO(austin): Support ABI v1 dynamic linking entry point	
++	// TODO(austin): Support ABI v1 dynamic linking entry point
  	MOVD	$runtime·rt0_go(SB), R12
  	MOVD	R12, CTR
 +	MOVD	_cgo_init(SB), R5
@@ -116,8 +116,8 @@ index f814515..1c05623 100644
 +	BEQ	nocgo
 +	BR	(CTR)	
 +nocgo:
-+	MOVD 0(R1), R3 // argc
-+	ADD $8, R1, R4 // argv
++	MOVD	0(R1), R3 // argc
++	ADD	$8, R1, R4 // argv
  	BR	(CTR)
 diff --git a/src/runtime/sys_linux_ppc64x.s b/src/runtime/sys_linux_ppc64x.s
 index 5b5df50..8100146 100644
@@ -132,3 +132,6 @@ index 5b5df50..8100146 100644
  #endif
  
  TEXT runtime·sigprofNonGoWrapper<>(SB),NOSPLIT,$0
+--- src/cmd/link/internal/ppc64/obj.go-bak	2018-11-02 21:26:26.986847725 +0800
++++ src/cmd/link/internal/ppc64/obj.go	2018-11-02 21:26:43.408847108 +0800
+
